@@ -3,175 +3,187 @@
 Duración máxima: **15 minutos**. Graba con OBS Studio o QuickTime (Mac: Cmd+Shift+5 →
 "Grabar toda la pantalla" o una ventana).
 
-Este guion está escrito como **texto para leer en voz alta** mientras grabas — con
-vocabulario técnico, tal como pidió el profesor. Los tiempos entre paréntesis son
-sugeridos. Practícalo una vez en voz alta antes de grabar para que no suene leído.
+Este guion está escrito como **texto para leer en voz alta** mientras grabas, con
+vocabulario técnico. Las líneas en cursiva entre paréntesis indican qué mostrar en
+pantalla en ese momento. Practícalo una vez en voz alta antes de grabar.
 
 ---
 
 ## 1. Introducción (30 s)
 
+*(Muestra el proyecto abierto en el editor)*
+
 > "Buenas, en este video voy a presentar el proyecto eshop-services, una arquitectura
 > de microservicios desarrollada en .NET 9 siguiendo el patrón CQRS, es decir,
-> separación entre comandos y consultas. El proyecto tiene dos microservicios:
-> Catalog.API, que expone un API REST para la gestión de productos —búsqueda por
-> nombre, filtrado por categoría y rango de precio, inserción, actualización,
-> eliminación y consulta paginada—, y Basket.API, que gestiona el carrito de compras
-> con una caché distribuida sobre Redis. El frontend está construido con Vue 3 y
-> Vite, y consume ambos servicios vía HTTP."
+> separación entre comandos y consultas. Voy a explicar la arquitectura del código,
+> mostrar el catálogo de productos funcionando en producción, y el proceso paso a
+> paso de cómo publiqué la base de datos, la API y el frontend en la nube."
 
-## 2. Recorrido del código (1-2 min)
+## 2. Arquitectura y código (2-3 min)
 
 *(Abre el editor y muestra los archivos mientras hablas)*
 
-> "Empecemos por la arquitectura del backend. Cada microservicio expone sus
-> endpoints usando Carter, una librería de enrutamiento sobre Minimal APIs de
-> ASP.NET Core, y la lógica de negocio se despacha con MediatR, implementando el
-> patrón mediador propio de CQRS: cada operación es un Command o una Query con su
-> respectivo Handler."
+> "El proyecto tiene dos microservicios. Catalog.API expone un API REST para la
+> gestión de productos: búsqueda por nombre, filtrado por categoría y rango de
+> precio, inserción, actualización, eliminación y consulta paginada. Basket.API
+> gestiona el carrito de compras."
 
 *(Abre `GetProductsEndPoint.cs` y `GetProductsQueryHandler.cs`)*
 
-> "Aquí está el endpoint de consulta de productos. Acepta filtros combinables por
-> nombre, categoría y rango de precio, todos opcionales, y devuelve el resultado
-> paginado usando un objeto genérico `PaginatedResult`. La persistencia se maneja con
-> Marten, que es un ORM de tipo document database sobre PostgreSQL: los objetos .NET
-> se serializan directamente a columnas JSONB, sin necesidad de mapeo relacional
-> explícito ni migraciones manuales."
+> "Cada microservicio expone sus endpoints usando Carter, una librería de enrutamiento
+> sobre Minimal APIs de ASP.NET Core, y la lógica de negocio se despacha con MediatR,
+> implementando el patrón mediador: cada operación es un Command o una Query con su
+> respectivo Handler. Este endpoint de consulta de productos acepta filtros
+> combinables por nombre, categoría y rango de precio, todos opcionales, y devuelve
+> el resultado paginado. La persistencia se maneja con Marten, un ORM de tipo
+> document database sobre PostgreSQL: los objetos .NET se serializan directamente a
+> columnas JSONB, sin necesidad de mapeo relacional explícito ni migraciones manuales."
 
-*(Abre `CacheBasketRepository.cs`)*
+*(Abre `CacheBasketRepository.cs` y `Program.cs` de Basket.API)*
 
-> "En Basket.API se implementa el patrón decorador para la caché: la clase
+> "Basket.API implementa el patrón decorador para el manejo de caché: la clase
 > `BasketRepository` accede directamente a PostgreSQL, y `CacheBasketRepository` la
-> envuelve, agregando una capa de caché distribuida con Redis a través de la
-> interfaz `IDistributedCache`. Esto se registra en el contenedor de inyección de
-> dependencias con `Decorate`, de la librería Scrutor, sin modificar el contrato de
-> la interfaz `IBasketRepository`. El resultado: las lecturas del carrito primero
-> consultan Redis, y solo si no hay dato en caché se consulta la base relacional."
+> envuelve agregando una capa de caché distribuida con Redis, a través de la interfaz
+> estándar `IDistributedCache` de .NET. Esto se registra en el contenedor de
+> inyección de dependencias con el método `Decorate`, de la librería Scrutor, sin
+> modificar el contrato de la interfaz `IBasketRepository`. Con esto, el servicio es
+> completamente compatible con Redis como caché distribuida: las lecturas del carrito
+> primero consultan Redis, y solo si no hay dato en caché se consulta la base
+> relacional, reduciendo la carga sobre PostgreSQL."
 
 *(Abre `App.vue`)*
 
-> "En el frontend, con Vue 3 usando la Composition API y `<script setup>`, se
-> consumen ambos servicios mediante `fetch`, con manejo reactivo de estado para el
-> catálogo, los filtros y el carrito."
+> "El frontend está construido con Vue 3, usando la Composition API y `<script setup>`,
+> y Vite como herramienta de build. Consume la API mediante `fetch`, con manejo
+> reactivo de estado para el catálogo, los filtros y la paginación."
 
-## 3. Demo en local — Catálogo (2 min)
+## 3. Demo del catálogo en producción (3 min)
 
-*(Terminal)*
-```bash
-docker compose up -d catalogdb
-dotnet run --project src/Catalog.API/Catalog.API.csproj --urls http://localhost:5201
-cd frontend && npm run dev
-```
+*(Abre en el navegador la URL real de Netlify, por ejemplo https://alexisbbya.netlify.app)*
 
-> "Levanto la base de datos PostgreSQL en un contenedor Docker, inicio la API de
-> catálogo en el puerto 5201, y el frontend con el servidor de desarrollo de Vite."
+> "Ahora una demostración funcional completa, directamente contra el entorno de
+> producción: el sitio publicado en Netlify, que consume la API publicada en Render,
+> que a su vez persiste en la base de datos publicada en Neon."
 
-*(En el navegador, `http://localhost:5173`)*
+*(Inserción)*
 
-> "Voy a demostrar las operaciones CRUD completas. Primero, inserción de un producto
-> nuevo con nombre, descripción, categorías, imagen y precio."
+> "Inserción de un producto nuevo: nombre, descripción, categorías, imagen y precio."
 
-*(Crea un producto)*
+*(Búsqueda por nombre)*
 
-> "Ahora, búsqueda por nombre."
+> "Búsqueda por nombre."
 
-*(Busca)*
+*(Filtro combinado)*
 
-> "Filtrado combinado: por categoría y rango de precio, aplicados simultáneamente."
+> "Filtro combinado por categoría y rango de precio, aplicados simultáneamente."
 
-*(Filtra)*
+*(Actualización)*
 
 > "Actualización de un producto existente."
 
-*(Edita y guarda)*
+*(Eliminación)*
 
 > "Eliminación por nombre."
 
-*(Elimina)*
+*(Paginación)*
 
-> "Y finalmente, la consulta paginada: con varios productos cargados, el listado se
-> pagina desde el backend usando los parámetros `pageIndex` y `pageSize`."
+> "Y la consulta paginada: el listado completo se pagina desde el backend con los
+> parámetros `pageIndex` y `pageSize`."
 
-*(Navega entre páginas)*
+## 4. Publicar la base de datos: Neon (2-3 min)
 
-## 4. Demo en local — Basket.API + Redis (2 min)
+*(Navegador: neon.tech)*
 
-*(Terminal)*
-```bash
-docker compose up -d basketdb redis basket.api
-curl http://localhost:8082/health
-```
+> "Para publicar la base de datos en un dominio propio en la nube, usé Neon, un
+> servicio de PostgreSQL serverless. El proceso fue el siguiente."
 
-> "Levanto la base de datos del carrito, el contenedor de Redis, y el microservicio
-> Basket.API. Con este `curl` al endpoint de healthcheck confirmo que ambas
-> dependencias están operativas: pueden ver en la respuesta que tanto la entrada
-> `npgsql`, correspondiente a PostgreSQL, como la entrada `redis` reportan estado
-> `Healthy`. Esto demuestra que el servicio tiene una caché real y funcional con
-> Redis, no simulada."
+*(Muestra el dashboard / proyecto)*
 
-*(En el navegador, sección Carrito)*
+> "Primero, creé una cuenta en Neon e inicié un nuevo proyecto, indicando el nombre y
+> la región más cercana."
 
-> "En el frontend, cargo el carrito asociado a un usuario, agrego productos del
-> catálogo, lo que dispara una escritura tanto en PostgreSQL como en la caché de
-> Redis, remuevo un ítem, y finalmente vacío el carrito por completo."
+*(Muestra la pantalla de "Connect")*
 
-## 5. Publicar la base de datos en Neon (1-2 min)
+> "Desde el botón 'Connect' del proyecto se obtiene el connection string de conexión
+> a PostgreSQL, con el host, usuario, contraseña y nombre de base de datos —oculto la
+> contraseña por seguridad—. Ese host, terminado en `neon.tech`, es justamente el
+> dominio en la nube de la base de datos."
 
-*(Navegador, dashboard de Neon)*
+*(Opcional: muestra el SQL Editor)*
 
-> "Para el despliegue en la nube, la base de datos PostgreSQL está alojada en Neon,
-> un servicio de Postgres serverless. Aquí se ve el proyecto creado y el connection
-> string de conexión —oculto la contraseña por seguridad—. Esto le da a la base de
-> datos un dominio propio en la nube, cumpliendo con el requisito de publicación de
-> la base de datos."
+> "Neon también incluye un editor SQL directo desde el navegador, útil para crear
+> bases de datos adicionales o ejecutar consultas sin necesidad de un cliente
+> externo."
 
-## 6. Publicar la API en Render (1-2 min)
+> "Ese connection string no se coloca directamente en el código fuente, sino como
+> variable de entorno en el servicio donde se aloja la API, que es el siguiente paso."
 
-*(Navegador, GitHub y luego Render)*
+## 5. Publicar la API: Render (3 min)
 
-> "El código fuente está versionado en un repositorio de GitHub. El servicio de
-> Catalog.API se despliega en Render como un Web Service basado en contenedor
-> Docker, apuntando al Dockerfile del proyecto. La configuración se inyecta mediante
-> variables de entorno: la cadena de conexión a Neon, el origen permitido para CORS,
-> y el entorno de ejecución en modo Production."
+*(Navegador: GitHub, mostrando el repositorio)*
 
-*(Muestra el log de deploy y la URL)*
+> "El código está versionado en un repositorio de GitHub. Para publicar la API en la
+> nube usé Render, conectado directamente a ese repositorio."
 
-> "El pipeline de build y despliegue termina exitosamente, y el servicio queda
-> disponible en una URL pública sobre HTTPS."
+*(Navegador: render.com, creación del Web Service)*
 
-*(Terminal: `curl https://tu-api.onrender.com/products`)*
+> "Los pasos fueron: crear una cuenta en Render y autorizar el acceso al repositorio;
+> luego, crear un nuevo 'Web Service', seleccionando el repositorio del proyecto."
 
-## 7. Publicar el frontend en Netlify (1 min)
+*(Muestra la configuración: runtime Docker, Dockerfile path)*
 
-*(Navegador, configuración de Netlify)*
+> "En la configuración indiqué que el runtime es Docker, y la ruta del Dockerfile
+> correspondiente a Catalog.API dentro del repositorio."
 
-> "El frontend se despliega en Netlify, configurado para tomar el directorio
-> `frontend` como base, ejecutar `npm run build` con Vite, y publicar el directorio
-> de salida `dist`. La URL de la API se inyecta en tiempo de build mediante la
-> variable de entorno `VITE_API_URL`."
+*(Muestra las variables de entorno)*
 
-## 8. Demo final en producción (1-2 min)
+> "Luego configuré las variables de entorno: el connection string de Neon para la
+> base de datos, el origen permitido para CORS —que es el dominio de Netlify—, y el
+> entorno de ejecución en modo Production."
 
-*(Navegador, la URL real de Netlify)*
+*(Muestra el log de deploy terminando en éxito y la URL pública)*
 
-> "Ahora, contra el entorno de producción real: búsqueda por nombre, filtro
-> combinado, inserción, actualización, eliminación y paginación, todo operando
-> contra la API desplegada en Render y la base de datos en Neon."
+> "Al desplegar, Render construye la imagen Docker automáticamente y publica el
+> servicio en una URL propia sobre HTTPS. Cada vez que se hace un nuevo `git push` al
+> repositorio, Render reconstruye y despliega automáticamente, sin pasos manuales
+> adicionales."
 
-*(Abre DevTools → Network)*
+*(Terminal o navegador: `curl https://tu-api.onrender.com/products`)*
 
-> "En la pestaña de Network se confirma que las peticiones viajan hacia el dominio
-> de Render y responden con código 200. En esta entrega, el microservicio de carrito
-> con Redis se demostró en el entorno local; el catálogo es el que está totalmente
-> desplegado en la nube."
+> "Y aquí confirmo que la API responde correctamente desde su URL pública."
 
-## 9. Cierre (15 s)
+## 6. Publicar el frontend: Netlify (2-3 min)
 
-> "En resumen: base de datos en Neon, API de catálogo desplegada en Render, frontend
-> en Netlify, y un segundo microservicio de carrito con caché distribuida en Redis,
-> demostrado en entorno local. Gracias."
+*(Navegador: netlify.com)*
+
+> "Para el frontend usé Netlify. El proceso: crear una cuenta, conectarla a GitHub, e
+> importar el mismo repositorio del proyecto."
+
+*(Muestra la configuración de build)*
+
+> "En la configuración de build indiqué el directorio `frontend` como base, el
+> comando `npm run build`, que ejecuta Vite, y el directorio de salida `dist` como
+> directorio de publicación."
+
+*(Muestra la variable de entorno VITE_API_URL)*
+
+> "La URL de la API publicada en Render se inyecta en tiempo de compilación mediante
+> la variable de entorno `VITE_API_URL`, para que el frontend sepa a qué servidor
+> hacer las peticiones."
+
+*(Muestra el deploy terminado y la URL pública)*
+
+> "Al desplegar, Netlify genera una URL pública propia, y también aquí cada nuevo
+> `git push` dispara un despliegue automático."
+
+## 7. Cierre (30 s)
+
+> "En resumen: la base de datos está publicada en Neon con su propio dominio, la API
+> de catálogo está publicada en Render y expone búsqueda, filtros combinados,
+> operaciones CRUD completas y paginación, el frontend está publicado en Netlify
+> consumiendo esa API en producción, y el microservicio de carrito, Basket.API,
+> implementa una capa de caché completamente compatible con Redis mediante el patrón
+> decorador. Gracias."
 
 ---
 
@@ -180,8 +192,6 @@ curl http://localhost:8082/health
 - [ ] Servicio en Render desplegado y respondiendo (probar `/products` antes de grabar).
 - [ ] Sitio en Netlify desplegado y probado end-to-end (crear/buscar/filtrar/actualizar/eliminar/paginar).
 - [ ] `Cors__AllowedOrigins` en Render actualizado con la URL final de Netlify.
-- [ ] `docker compose up -d catalogdb basketdb redis basket.api` corriendo antes de
-      grabar la sección 4, y `curl http://localhost:8082/health` probado.
 - [ ] Contraseñas/connection strings tapadas si el video se va a compartir públicamente.
 - [ ] Practica el guion en voz alta una vez, cronometrado, para que quede bajo 15 min
       y no suene leído palabra por palabra.
