@@ -1,0 +1,28 @@
+version: '3.4'
+
+services:
+  catalogdb:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: CatalogDb
+    ports:
+      - "5433:5432"
+    volumes:
+      - catalogdbdata:/var/lib/postgresql/data
+
+  basketdb:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: BasketDb
+    ports:
+      - "5434:5432"
+    volumes:
+      - posgres_basket:/var/lib/postgresql/data
+
+volumes:
+  catalogdbdata:
+  posgres_basket:

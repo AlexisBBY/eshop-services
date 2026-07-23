@@ -1,0 +1,22 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.log
+npm-debug.log*
+
+# Env / secrets
+.env
+.env.local
+frontend/.env
+
+# OS / editor
+.DS_Store
+.idea/
+.claude/
