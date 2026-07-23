@@ -2,7 +2,8 @@ using Catalog.API.Common.Pagination;
 
 namespace Catalog.API.Models.Products.GetProducts
 {
-    public record GetProductsQuery(string? Name, int PageIndex = 1, int PageSize = 10) : IQuery<GetProductsResult>;
+    public record GetProductsQuery(string? Name, string? Category = null, decimal? MinPrice = null,
+        decimal? MaxPrice = null, int PageIndex = 1, int PageSize = 10) : IQuery<GetProductsResult>;
     public record GetProductsResult(PaginatedResult<Product> Products);
 
     internal class GetProductsQueryHandler(IDocumentSession session, ILogger<GetProductsQueryHandler> logger)
@@ -26,6 +27,15 @@ namespace Catalog.API.Models.Products.GetProducts
                 if (!string.IsNullOrWhiteSpace(query.Name))
                     queryable = queryable.Where(p => p.Name.ToLower().Contains(query.Name.ToLower()));
 
+                if (!string.IsNullOrWhiteSpace(query.Category))
+                    queryable = queryable.Where(p => p.Category.Contains(query.Category));
+
+                if (query.MinPrice.HasValue)
+                    queryable = queryable.Where(p => p.Price >= query.MinPrice.Value);
+
+                if (query.MaxPrice.HasValue)
+                    queryable = queryable.Where(p => p.Price <= query.MaxPrice.Value);
+
                 var totalCount = await queryable.CountAsync(cancellationToken);
 
                 var products = await queryable
@@ -41,6 +51,9 @@ namespace Catalog.API.Models.Products.GetProducts
             {
                 var filtered = DemoProducts
                     .Where(p => string.IsNullOrWhiteSpace(query.Name) || p.Name.Contains(query.Name, StringComparison.OrdinalIgnoreCase))
+                    .Where(p => string.IsNullOrWhiteSpace(query.Category) || p.Category.Contains(query.Category))
+                    .Where(p => !query.MinPrice.HasValue || p.Price >= query.MinPrice.Value)
+                    .Where(p => !query.MaxPrice.HasValue || p.Price <= query.MaxPrice.Value)
                     .OrderBy(p => p.Name)
                     .Skip((query.PageIndex - 1) * query.PageSize)
                     .Take(query.PageSize)

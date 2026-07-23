@@ -14,7 +14,8 @@ const totalCount = ref(0)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 
 const categoryFilter = ref('')
-const categoryMode = ref(false)
+const minPriceFilter = ref('')
+const maxPriceFilter = ref('')
 
 const basketUserName = ref('')
 const basket = ref(null)
@@ -37,7 +38,6 @@ const editingId = ref(null)
 const submitting = ref(false)
 
 async function loadProducts() {
-  categoryMode.value = false
   loading.value = true
   error.value = ''
 
@@ -49,6 +49,18 @@ async function loadProducts() {
 
     if (searchTerm.value.trim()) {
       params.set('name', searchTerm.value.trim())
+    }
+
+    if (categoryFilter.value.trim()) {
+      params.set('category', categoryFilter.value.trim())
+    }
+
+    if (minPriceFilter.value !== '') {
+      params.set('minPrice', minPriceFilter.value)
+    }
+
+    if (maxPriceFilter.value !== '') {
+      params.set('maxPrice', maxPriceFilter.value)
     }
 
     const response = await fetch(`${API_URL}/products?${params.toString()}`)
@@ -153,36 +165,16 @@ function goToPage(nextPage) {
   loadProducts()
 }
 
-function searchProducts() {
+function applyFilters() {
   pageIndex.value = 1
   loadProducts()
 }
 
-async function filterByCategory() {
-  if (!categoryFilter.value.trim()) return
-
-  categoryMode.value = true
-  loading.value = true
-  error.value = ''
-
-  try {
-    const response = await fetch(`${API_URL}/products/category/${encodeURIComponent(categoryFilter.value.trim())}`)
-    if (!response.ok) {
-      throw new Error('No se pudo filtrar por categoría')
-    }
-
-    const payload = await response.json()
-    products.value = payload.products || []
-  } catch (err) {
-    error.value = err.message || 'Ocurrió un error'
-  } finally {
-    loading.value = false
-  }
-}
-
-function clearCategoryFilter() {
+function clearFilters() {
+  searchTerm.value = ''
   categoryFilter.value = ''
-  categoryMode.value = false
+  minPriceFilter.value = ''
+  maxPriceFilter.value = ''
   pageIndex.value = 1
   loadProducts()
 }
@@ -337,14 +329,15 @@ onMounted(() => {
 
         <section class="card list-card">
           <div class="toolbar">
-            <input v-model="searchTerm" placeholder="Buscar por nombre" @keyup.enter="searchProducts" />
-            <button class="primary" @click="searchProducts">Buscar</button>
+            <input v-model="searchTerm" placeholder="Buscar por nombre" @keyup.enter="applyFilters" />
+            <input v-model="categoryFilter" placeholder="Categoría" @keyup.enter="applyFilters" />
           </div>
 
           <div class="toolbar">
-            <input v-model="categoryFilter" placeholder="Filtrar por categoría" @keyup.enter="filterByCategory" />
-            <button class="secondary" @click="filterByCategory">Filtrar</button>
-            <button v-if="categoryMode" class="secondary" @click="clearCategoryFilter">Quitar filtro</button>
+            <input v-model="minPriceFilter" type="number" min="0" step="0.01" placeholder="Precio mínimo" @keyup.enter="applyFilters" />
+            <input v-model="maxPriceFilter" type="number" min="0" step="0.01" placeholder="Precio máximo" @keyup.enter="applyFilters" />
+            <button class="primary" @click="applyFilters">Filtrar</button>
+            <button class="secondary" @click="clearFilters">Limpiar filtros</button>
           </div>
 
           <div class="table-wrapper">
@@ -375,7 +368,7 @@ onMounted(() => {
             <p v-else class="empty">Cargando productos...</p>
           </div>
 
-          <div class="pagination" v-if="!categoryMode && totalCount">
+          <div class="pagination" v-if="totalCount">
             <button :disabled="pageIndex === 1" @click="goToPage(pageIndex - 1)">Anterior</button>
             <span>Página {{ pageIndex }} de {{ totalPages }}</span>
             <button :disabled="pageIndex === totalPages" @click="goToPage(pageIndex + 1)">Siguiente</button>
