@@ -85,6 +85,10 @@ h2 {
   gap: 20px;
 }
 
+.basket-card {
+  margin-top: 20px;
+}
+
 .card {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
