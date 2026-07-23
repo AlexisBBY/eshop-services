@@ -17,7 +17,7 @@ const categoryFilter = ref('')
 const minPriceFilter = ref('')
 const maxPriceFilter = ref('')
 
-const basketUserName = ref('')
+const basketUserName = ref('Alexis')
 const basket = ref(null)
 const basketLoading = ref(false)
 const basketError = ref('')
@@ -273,6 +273,7 @@ async function clearBasket() {
 
 onMounted(() => {
   loadProducts()
+  loadBasket()
 })
 </script>
 
