@@ -3,11 +3,19 @@
 Este documento explica, paso a paso, cómo publicar:
 1. La base de datos en **Neon** (Postgres en la nube, con su propio dominio).
 2. La API (**Catalog.API**, .NET 9) en **Render**.
-3. El frontend (Vue 3 + Vite) en **Netlify**.
+3. El frontend (Vue 3 + Vite) en **Netlify**, con búsqueda por nombre, filtro por
+   categoría, alta/edición/eliminación de productos y paginación.
 
 Requisito: el proyecto debe estar en un repositorio de **GitHub**, porque tanto Render
 como Netlify despliegan automáticamente cuando conectas un repo (cada `git push`
 dispara un nuevo deploy).
+
+**Sobre Basket.API (carrito) y Redis**: el proyecto también incluye `Basket.API`, que
+usa Redis como caché real (patrón decorador, ver `CacheBasketRepository.cs`). Por
+decisión del equipo, **Basket.API y Redis se demuestran solo en local** (Docker
+Compose) y no se despliegan a la nube — el frontend en Netlify incluye la sección de
+carrito, pero solo funciona apuntando a `localhost` (ver sección "Basket.API + Redis en
+local" más abajo). El video debe mostrar esa parte corriendo en la máquina local.
 
 ---
 
@@ -121,28 +129,68 @@ Ahora que tienes la URL real de Netlify, vuelve a Render:
 
 Desde la URL de Netlify, en el navegador:
 1. Buscar un producto por nombre.
-2. Crear un producto nuevo.
-3. Actualizarlo.
-4. Eliminarlo por nombre.
-5. Verificar la paginación (crea 6+ productos y cambia de página).
+2. Filtrar por categoría (usa `GET /products/category/{category}`, sin paginar).
+3. Crear un producto nuevo.
+4. Actualizarlo.
+5. Eliminarlo por nombre.
+6. Verificar la paginación (crea 6+ productos y cambia de página).
 
 Si algo falla, abre las **DevTools → Network** del navegador: un error de CORS se ve
 como "blocked by CORS policy" en la consola — revisa que la URL de Netlify esté
 exactamente en `Cors__AllowedOrigins` en Render (con `https://`, sin `/` al final).
 
+La sección "Carrito" del frontend **no** va a funcionar contra la URL pública (por
+diseño — ver nota de Basket.API/Redis arriba); esa parte se prueba en local, sección
+siguiente.
+
+---
+
+## 6. Basket.API + Redis en local (carrito)
+
+Esto se queda solo en tu máquina, no se despliega. Sirve para mostrar en el video que
+el caché con Redis funciona de verdad.
+
+1. Levantar la base de Basket y Redis:
+   ```bash
+   docker compose up -d basketdb redis
+   ```
+2. Correr Basket.API (ya sea con Docker — `docker compose up -d basket.api`, que
+   queda en `http://localhost:8082` — o con `dotnet run --project src/Basket/Basket.API/Basket.API.csproj`).
+3. Verificar que Redis y Postgres están conectados:
+   ```bash
+   curl http://localhost:8082/health
+   ```
+   Debe responder `"status":"Healthy"` con las entradas `npgsql` y `redis` en
+   `Healthy` — esta es la prueba de que el caché es compatible con Redis (mostrar
+   esto en el video es más contundente que solo decirlo).
+4. Con el frontend corriendo en local (`npm run dev`, que ya apunta a
+   `http://localhost:8082` por defecto vía `VITE_BASKET_API_URL`), probar en la
+   sección "Carrito": cargar carrito por usuario, agregar productos, quitar, vaciar.
+5. (Opcional, para la demo) Repetir el mismo `GET /basket/{userName}` dos veces
+   seguidas — la primera vez lee de Postgres y guarda en caché, la segunda ya
+   responde desde Redis. No hay forma visual directa de diferenciarlo desde el
+   navegador, pero se puede mencionar en el video, o mostrarlo con los logs de la
+   consola donde corre `dotnet run`.
+
 ---
 
 ## Referencia rápida — desarrollo local
 
-1. `docker compose up -d catalogdb`
+1. `docker compose up -d catalogdb basketdb redis`
 2. `dotnet run --project src/Catalog.API/Catalog.API.csproj --urls http://localhost:5201`
-3. `cd frontend && npm install && npm run dev` → http://localhost:5173
+3. `dotnet run --project src/Basket/Basket.API/Basket.API.csproj --urls http://localhost:8082`
+   (o `docker compose up -d basket.api` si prefieres correrlo en contenedor)
+4. `cd frontend && npm install && npm run dev` → http://localhost:5173
 
 ## Referencia rápida — variables de entorno en producción
 
 | Servicio | Variable | Valor |
 |---|---|---|
 | Render | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| Render | `ConnectionStrings__Database` | connection string de Neon |
+| Render | `ConnectionStrings__Database` | connection string de Neon (`neondb`, Catalog) |
 | Render | `Cors__AllowedOrigins__0` | URL de Netlify |
-| Netlify | `VITE_API_URL` | URL de Render |
+| Netlify | `VITE_API_URL` | URL de Render (Catalog.API) |
+
+> Nota: ya existe una segunda base `basketdb` creada en el mismo proyecto de Neon,
+> lista por si más adelante deciden desplegar también Basket.API a la nube — por
+> ahora no se usa.
