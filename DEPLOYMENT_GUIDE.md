@@ -1,98 +1,123 @@
-# Guía de despliegue — eshop-services (Catalog.API + Frontend Vue)
+# Guía de despliegue — eshop-services (Catalog.API + Basket.API + Frontend Vue)
 
-Este documento explica, paso a paso, cómo publicar:
-1. La base de datos en **Neon** (Postgres en la nube, con su propio dominio).
-2. La API (**Catalog.API**, .NET 9) en **Render**.
-3. El frontend (Vue 3 + Vite) en **Netlify**, con búsqueda por nombre, filtro por
-   categoría, alta/edición/eliminación de productos y paginación.
+Este documento explica, paso a paso, cómo publicar el proyecto completo:
+1. Dos bases de datos PostgreSQL en **Neon** (Catalog y Basket, cada una con su
+   propio dominio en la nube).
+2. Una caché **Redis** en **Upstash**.
+3. Dos APIs .NET 9 en **Render**: `Catalog.API` (productos: búsqueda por nombre,
+   filtro por categoría y precio, alta/edición/eliminación, paginación) y
+   `Basket.API` (carrito, con caché distribuida sobre Redis).
+4. El frontend (Vue 3 + Vite) en **Netlify**, consumiendo ambas APIs.
 
 Requisito: el proyecto debe estar en un repositorio de **GitHub**, porque tanto Render
 como Netlify despliegan automáticamente cuando conectas un repo (cada `git push`
 dispara un nuevo deploy).
 
-**Sobre Basket.API (carrito) y Redis**: el proyecto también incluye `Basket.API`, que
-usa Redis como caché real (patrón decorador, ver `CacheBasketRepository.cs`). Por
-decisión del equipo, **Basket.API y Redis se demuestran solo en local** (Docker
-Compose) y no se despliegan a la nube — el frontend en Netlify incluye la sección de
-carrito, pero solo funciona apuntando a `localhost` (ver sección "Basket.API + Redis en
-local" más abajo). El video debe mostrar esa parte corriendo en la máquina local.
-
 ---
 
 ## 0. Subir el proyecto a GitHub
 
-El repo local ya está inicializado y con un primer commit (rama `main`). Solo falta
-crear el repo remoto y subirlo:
-
 1. Entra a https://github.com/new y crea un repositorio **vacío** (sin README, sin
-   .gitignore, sin licencia — ya los tenemos localmente). Por ejemplo, llámalo
-   `eshop-services`.
-2. Copia la URL que te da GitHub (HTTPS), algo como
-   `https://github.com/TU_USUARIO/eshop-services.git`.
+   .gitignore, sin licencia). Por ejemplo, llámalo `eshop-services`.
+2. Copia la URL HTTPS que te da GitHub.
 3. En la terminal, dentro de la carpeta del proyecto:
    ```bash
    git remote add origin https://github.com/TU_USUARIO/eshop-services.git
    git push -u origin main
    ```
-   Te pedirá iniciar sesión (usuario + token personal, o el navegador si tienes
-   GitHub CLI/Desktop configurado).
-
-> Nota: git detectó automáticamente tu nombre/usuario del equipo para los commits.
-> Si quieres que aparezca tu nombre real en el historial (recomendado para la
-> entrega), antes de otro commit corre:
-> `git config user.name "Tu Nombre"` y `git config user.email "tu@correo.com"`.
 
 ---
 
-## 1. Base de datos: Neon.tech
+## 1. Bases de datos: Neon.tech
 
 1. Crea una cuenta gratuita en https://neon.tech e inicia sesión.
-2. **New Project** → nombre `catalogdb` (o el que prefieras), región cercana a ti,
-   Postgres versión 15+ (coincide con la imagen que usas en local).
-3. Neon crea automáticamente una base de datos y te muestra un **Connection string**
-   como:
+2. **New Project** → nombre `eshop-catalog` (o el que prefieras), región cercana a
+   ti, Postgres 15+.
+3. Neon crea automáticamente la primera base de datos (`neondb`, usada por
+   `Catalog.API`) y te muestra un **Connection string** desde el botón **Connect**.
+4. Para `Basket.API` se necesita una **segunda base de datos** en el mismo proyecto:
+   entra a **SQL Editor** y ejecuta:
+   ```sql
+   CREATE DATABASE basketdb;
    ```
-   postgres://usuario:password@ep-xxxx-xxxx.region.aws.neon.tech/neondb?sslmode=require
+   Luego, en **Connect**, cambia el selector de base de datos a `basketdb` para
+   obtener su connection string (mismo host/usuario, distinto nombre de base).
+5. Los connection strings de Neon vienen en formato URI
+   (`postgresql://usuario:password@host/db?sslmode=require`), pero Npgsql (el driver
+   .NET que usa Marten) necesita formato clave=valor. Conviértelo así:
    ```
-   Cópialo — lo vas a pegar como variable de entorno en Render (paso 2), **no** lo
-   escribas en `appsettings.json` (ese archivo se sube a GitHub y quedaría público).
-4. Marten (el ORM que usa `Catalog.API`) crea el esquema de tablas automáticamente
-   la primera vez que la API se conecta y guarda un documento — no necesitas correr
-   migraciones a mano.
+   Host=<host-de-neon>;Port=5432;Database=<neondb-o-basketdb>;Username=<usuario>;Password=<password>;Ssl Mode=Require
+   ```
+   Este valor va como variable de entorno en Render (paso 3), **nunca** en
+   `appsettings.json` (se sube a GitHub y quedaría público).
+6. Marten crea el esquema de tablas automáticamente al guardar el primer documento
+   — no hace falta correr migraciones a mano.
 
-Esto ya cumple el requisito de "publicar la base de datos en un dominio": el host
-`ep-xxxx.region.aws.neon.tech` es el dominio de tu base de datos en la nube.
+Esto cumple el requisito de "publicar la base de datos en un dominio": el host
+`ep-xxxx.region.aws.neon.tech` es el dominio en la nube de ambas bases.
 
 ---
 
-## 2. API: Render
+## 2. Caché: Redis en Upstash
 
-1. Crea una cuenta en https://render.com y conéctala a tu cuenta de GitHub.
-2. **New +** → **Web Service** → selecciona el repo `eshop-services`.
-3. Configuración del servicio:
-   - **Runtime**: Docker
-   - **Root Directory**: (déjalo vacío / raíz del repo — el Dockerfile necesita ver
-     tanto `src/Catalog.API` como `src/BuildingBlocks`)
-   - **Dockerfile Path**: `src/Catalog.API/Dockerfile`
-   - **Instance Type**: Free
-4. Variables de entorno (**Environment** → **Add Environment Variable**):
+1. Crea una cuenta gratuita en https://upstash.com (con GitHub es más rápido).
+2. **Create Database** → tipo **Regional** (no "Global"), región cercana (idealmente
+   la misma familia de región que Neon, ej. `us-east-1`), plan **Free**.
+3. En el dashboard de la base, pestaña **Connect**, copia el string en formato
+   `rediss://default:<password>@<host>:<port>`.
+4. Conviértelo al formato que espera StackExchange.Redis (el cliente .NET):
+   ```
+   <host>:<port>,password=<password>,ssl=True,abortConnect=False
+   ```
+
+---
+
+## 3. APIs: Render (dos Web Services)
+
+Se crean **dos servicios separados**, uno por microservicio, ambos apuntando al
+mismo repositorio.
+
+### 3.1 Catalog.API
+1. **New +** → **Web Service** → selecciona el repo.
+2. **Runtime**: Docker · **Root Directory**: vacío ·
+   **Dockerfile Path**: `src/Catalog.API/Dockerfile` · **Instance Type**: Free.
+3. Variables de entorno:
    | Key | Value |
    |---|---|
    | `ASPNETCORE_ENVIRONMENT` | `Production` |
-   | `ConnectionStrings__Database` | *(el connection string de Neon del paso 1)* |
-   | `Cors__AllowedOrigins__0` | `http://localhost:5173` *(temporal, se corrige en el paso 4)* |
-5. **Create Web Service**. Render construye la imagen Docker y la despliega. Al
-   terminar te da una URL pública tipo `https://catalog-api-xxxx.onrender.com`.
-6. Verifica que responde:
-   ```bash
-   curl https://catalog-api-xxxx.onrender.com/products
-   ```
-   (El plan free de Render "duerme" el servicio tras inactividad; el primer request
-   puede tardar ~30s en despertar — coméntalo en el video para que no parezca un error.)
+   | `ConnectionStrings__Database` | connection string de Neon (`neondb`) |
+   | `Cors__AllowedOrigins__0` | URL de Netlify (paso 5; provisional al inicio) |
+4. **Create Web Service**. Al terminar, obtienes una URL pública
+   (`https://catalog-api-xxxx.onrender.com`).
+
+### 3.2 Basket.API
+1. **New +** → **Web Service** → mismo repo.
+2. **Runtime**: Docker · **Root Directory**: vacío ·
+   **Dockerfile Path**: `src/Basket/Basket.API/Dockerfile` · **Instance Type**: Free.
+3. Variables de entorno:
+   | Key | Value |
+   |---|---|
+   | `ASPNETCORE_ENVIRONMENT` | `Production` |
+   | `ConnectionStrings__Database` | connection string de Neon (`basketdb`) |
+   | `ConnectionStrings__Redis` | connection string de Upstash (paso 2.4) |
+   | `Cors__AllowedOrigins__0` | URL de Netlify (paso 5; provisional al inicio) |
+4. **Create Web Service**. Obtienes otra URL pública
+   (`https://basket-api-xxxx.onrender.com`).
+
+Verifica ambos servicios:
+```bash
+curl https://catalog-api-xxxx.onrender.com/products
+curl https://basket-api-xxxx.onrender.com/health
+```
+El segundo debe responder `"status":"Healthy"` con las entradas `npgsql` y `redis`
+ambas en `Healthy` — esa es la prueba de que el caché es compatible con Redis.
+
+> El plan free de Render "duerme" cada servicio tras inactividad; el primer request
+> puede tardar ~30s en despertar.
 
 ---
 
-## 3. Frontend: Netlify
+## 4. Frontend: Netlify
 
 1. Crea una cuenta en https://netlify.com y conéctala a GitHub.
 2. **Add new site** → **Import an existing project** → selecciona el repo.
@@ -100,97 +125,66 @@ Esto ya cumple el requisito de "publicar la base de datos en un dominio": el hos
    - **Base directory**: `frontend`
    - **Build command**: `npm run build`
    - **Publish directory**: `frontend/dist`
-4. Variables de entorno (**Site settings** → **Environment variables**):
+4. Variables de entorno:
    | Key | Value |
    |---|---|
-   | `VITE_API_URL` | `https://catalog-api-xxxx.onrender.com` *(la URL de Render del paso 2)* |
-5. **Deploy site**. Netlify construye con Vite y publica. Te da una URL tipo
-   `https://tu-sitio-123abc.netlify.app` (puedes cambiar el subdominio en
-   **Site settings → Domain management → Options → Edit site name**).
+   | `VITE_API_URL` | URL de Render de Catalog.API |
+   | `VITE_BASKET_API_URL` | URL de Render de Basket.API |
+5. **Deploy site**. Te da una URL tipo `https://tu-sitio.netlify.app`.
 
 `frontend/netlify.toml` ya incluye la regla de redirect para que las rutas de la SPA
-funcionen correctamente, así que no hay que configurar nada extra ahí.
+funcionen correctamente.
+
+> Si cambias una variable de entorno **después** de que el sitio ya se desplegó,
+> tienes que forzar un nuevo build manualmente: **Deploys → Trigger deploy → Deploy
+> site** (Vite incrusta las variables en tiempo de compilación, no en runtime).
 
 ---
 
-## 4. Cerrar el círculo: CORS
+## 5. Cerrar el círculo: CORS
 
-Ahora que tienes la URL real de Netlify, vuelve a Render:
+Con las URLs reales de Netlify y de ambas APIs ya conocidas:
 
-1. **Environment** → edita `Cors__AllowedOrigins__0` y ponle tu URL de Netlify
-   (`https://tu-sitio-123abc.netlify.app`).
-2. Si quieres seguir probando también desde local, agrega una segunda variable
-   `Cors__AllowedOrigins__1` = `http://localhost:5173`.
-3. Guarda — Render vuelve a desplegar automáticamente con las nuevas variables.
+1. En **cada** servicio de Render (Catalog.API y Basket.API) → **Environment** →
+   edita `Cors__AllowedOrigins__0` con la URL real de Netlify.
+2. Guarda — cada servicio redespliega automáticamente.
 
 ---
 
-## 5. Prueba end-to-end en producción
+## 6. Prueba end-to-end en producción
 
 Desde la URL de Netlify, en el navegador:
-1. Buscar un producto por nombre.
-2. Filtrar por categoría (usa `GET /products/category/{category}`, sin paginar).
-3. Crear un producto nuevo.
-4. Actualizarlo.
-5. Eliminarlo por nombre.
-6. Verificar la paginación (crea 6+ productos y cambia de página).
+1. Catálogo: buscar por nombre, filtrar por categoría y rango de precio (combinados),
+   crear, actualizar, eliminar por nombre, y verificar la paginación.
+2. Carrito: cargar carrito por usuario, agregar productos, quitarlos, vaciar el
+   carrito — y recargar la página para confirmar que el carrito persiste (viene de
+   Redis/Postgres, no de memoria local del navegador).
 
-Si algo falla, abre las **DevTools → Network** del navegador: un error de CORS se ve
-como "blocked by CORS policy" en la consola — revisa que la URL de Netlify esté
-exactamente en `Cors__AllowedOrigins` en Render (con `https://`, sin `/` al final).
-
-La sección "Carrito" del frontend **no** va a funcionar contra la URL pública (por
-diseño — ver nota de Basket.API/Redis arriba); esa parte se prueba en local, sección
-siguiente.
-
----
-
-## 6. Basket.API + Redis en local (carrito)
-
-Esto se queda solo en tu máquina, no se despliega. Sirve para mostrar en el video que
-el caché con Redis funciona de verdad.
-
-1. Levantar la base de Basket y Redis:
-   ```bash
-   docker compose up -d basketdb redis
-   ```
-2. Correr Basket.API (ya sea con Docker — `docker compose up -d basket.api`, que
-   queda en `http://localhost:8082` — o con `dotnet run --project src/Basket/Basket.API/Basket.API.csproj`).
-3. Verificar que Redis y Postgres están conectados:
-   ```bash
-   curl http://localhost:8082/health
-   ```
-   Debe responder `"status":"Healthy"` con las entradas `npgsql` y `redis` en
-   `Healthy` — esta es la prueba de que el caché es compatible con Redis (mostrar
-   esto en el video es más contundente que solo decirlo).
-4. Con el frontend corriendo en local (`npm run dev`, que ya apunta a
-   `http://localhost:8082` por defecto vía `VITE_BASKET_API_URL`), probar en la
-   sección "Carrito": cargar carrito por usuario, agregar productos, quitar, vaciar.
-5. (Opcional, para la demo) Repetir el mismo `GET /basket/{userName}` dos veces
-   seguidas — la primera vez lee de Postgres y guarda en caché, la segunda ya
-   responde desde Redis. No hay forma visual directa de diferenciarlo desde el
-   navegador, pero se puede mencionar en el video, o mostrarlo con los logs de la
-   consola donde corre `dotnet run`.
+Si algo falla, abre **DevTools → Network**: un error de CORS se ve como "blocked by
+CORS policy" en la consola — revisa que la URL de Netlify esté exactamente en
+`Cors__AllowedOrigins` de cada servicio en Render (con `https://`, sin `/` al final).
 
 ---
 
 ## Referencia rápida — desarrollo local
 
-1. `docker compose up -d catalogdb basketdb redis`
-2. `dotnet run --project src/Catalog.API/Catalog.API.csproj --urls http://localhost:5201`
-3. `dotnet run --project src/Basket/Basket.API/Basket.API.csproj --urls http://localhost:8082`
-   (o `docker compose up -d basket.api` si prefieres correrlo en contenedor)
-4. `cd frontend && npm install && npm run dev` → http://localhost:5173
+```bash
+docker compose up -d catalogdb basketdb redis
+dotnet run --project src/Catalog.API/Catalog.API.csproj --urls http://localhost:5201
+dotnet run --project src/Basket/Basket.API/Basket.API.csproj --urls http://localhost:8082
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
 
 ## Referencia rápida — variables de entorno en producción
 
 | Servicio | Variable | Valor |
 |---|---|---|
-| Render | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| Render | `ConnectionStrings__Database` | connection string de Neon (`neondb`, Catalog) |
-| Render | `Cors__AllowedOrigins__0` | URL de Netlify |
+| Render (Catalog.API) | `ASPNETCORE_ENVIRONMENT` | `Production` |
+| Render (Catalog.API) | `ConnectionStrings__Database` | connection string de Neon (`neondb`) |
+| Render (Catalog.API) | `Cors__AllowedOrigins__0` | URL de Netlify |
+| Render (Basket.API) | `ASPNETCORE_ENVIRONMENT` | `Production` |
+| Render (Basket.API) | `ConnectionStrings__Database` | connection string de Neon (`basketdb`) |
+| Render (Basket.API) | `ConnectionStrings__Redis` | connection string de Upstash |
+| Render (Basket.API) | `Cors__AllowedOrigins__0` | URL de Netlify |
 | Netlify | `VITE_API_URL` | URL de Render (Catalog.API) |
-
-> Nota: ya existe una segunda base `basketdb` creada en el mismo proyecto de Neon,
-> lista por si más adelante deciden desplegar también Basket.API a la nube — por
-> ahora no se usa.
+| Netlify | `VITE_BASKET_API_URL` | URL de Render (Basket.API) |

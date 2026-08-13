@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5201'
 const BASKET_API_URL = import.meta.env.VITE_BASKET_API_URL || 'http://localhost:8082'
+const ORDERS_API_URL = import.meta.env.VITE_ORDERS_API_URL || 'http://localhost:5210'
 
 const products = ref([])
 const loading = ref(false)
@@ -24,6 +25,10 @@ const basketError = ref('')
 const basketTotal = computed(() =>
   (basket.value?.items || []).reduce((sum, item) => sum + item.price * item.quantity, 0)
 )
+
+const checkoutLoading = ref(false)
+const checkoutError = ref('')
+const lastOrder = ref(null)
 
 const form = ref({
   id: null,
@@ -271,6 +276,43 @@ async function clearBasket() {
   }
 }
 
+async function realizarCompra() {
+  if (!basket.value || basket.value.items.length === 0) {
+    checkoutError.value = 'El carrito está vacío.'
+    return
+  }
+
+  checkoutLoading.value = true
+  checkoutError.value = ''
+  lastOrder.value = null
+
+  try {
+    const response = await fetch(`${ORDERS_API_URL}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': crypto.randomUUID()
+      },
+      body: JSON.stringify({
+        customerId: basket.value.userName,
+        basketId: basket.value.userName
+      })
+    })
+
+    if (!response.ok) {
+      const problem = await response.json().catch(() => null)
+      throw new Error(problem?.detail || 'No se pudo generar la orden')
+    }
+
+    lastOrder.value = await response.json()
+    await clearBasket()
+  } catch (err) {
+    checkoutError.value = err.message || 'Ocurrió un error al generar la orden'
+  } finally {
+    checkoutLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadProducts()
   loadBasket()
@@ -414,7 +456,21 @@ onMounted(() => {
 
           <div class="pagination">
             <span>Total: ${{ basketTotal.toFixed(2) }}</span>
-            <button class="secondary" @click="clearBasket">Vaciar carrito</button>
+            <div class="actions">
+              <button class="secondary" @click="clearBasket">Vaciar carrito</button>
+              <button class="primary" :disabled="checkoutLoading || !basket.items.length" @click="realizarCompra">
+                {{ checkoutLoading ? 'Procesando...' : 'Realizar compra' }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="checkoutError" class="alert">{{ checkoutError }}</div>
+
+          <div v-if="lastOrder" class="alert confirmation">
+            <p><strong>¡Compra confirmada!</strong></p>
+            <p>Orden: {{ lastOrder.id }}</p>
+            <p>Estado: {{ lastOrder.status }}</p>
+            <p>Subtotal: ${{ lastOrder.subtotal.toFixed(2) }} · Impuesto: ${{ lastOrder.tax.toFixed(2) }} · Total: ${{ lastOrder.total.toFixed(2) }}</p>
           </div>
         </div>
         <p v-else-if="!basketLoading" class="empty">Carga un usuario para ver su carrito.</p>

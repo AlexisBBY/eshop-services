@@ -170,6 +170,15 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.alert.confirmation {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.alert.confirmation p {
+  margin: 2px 0;
+}
+
 .toolbar {
   margin-bottom: 12px;
 }
