@@ -297,10 +297,18 @@ const orders = ref([])
 const ordersLoading = ref(false)
 const ordersError = ref('')
 const ordersCustomerFilter = ref('')
+const ordersPageIndex = ref(1)
+const ordersPageSize = 8
+const ordersTotalPages = computed(() => Math.max(1, Math.ceil(orders.value.length / ordersPageSize)))
+const pagedOrders = computed(() => {
+  const start = (ordersPageIndex.value - 1) * ordersPageSize
+  return orders.value.slice(start, start + ordersPageSize)
+})
 
 async function loadOrders() {
   ordersLoading.value = true
   ordersError.value = ''
+  ordersPageIndex.value = 1
 
   try {
     const url = ordersCustomerFilter.value.trim()
@@ -321,6 +329,11 @@ async function loadOrders() {
 function clearOrdersFilter() {
   ordersCustomerFilter.value = ''
   loadOrders()
+}
+
+function goToOrdersPage(nextPage) {
+  if (nextPage < 1 || nextPage > ordersTotalPages.value) return
+  ordersPageIndex.value = nextPage
 }
 
 function summarizeProducts(order) {
@@ -613,6 +626,8 @@ onMounted(() => {
           <button class="secondary" @click="clearOrdersFilter">Ver todas</button>
         </div>
 
+        <p v-if="orders.length" class="results-count">{{ orders.length }} {{ orders.length === 1 ? 'orden encontrada' : 'órdenes encontradas' }}</p>
+
         <div class="table-wrapper">
           <table v-if="orders.length">
             <thead>
@@ -624,11 +639,11 @@ onMounted(() => {
                 <th>Productos</th>
                 <th>Total</th>
                 <th>Estado</th>
-                <th>Acciones</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="order in orders" :key="order.id" class="row-clickable" @click="openOrderPage(order.id)">
+              <tr v-for="order in pagedOrders" :key="order.id" class="row-clickable" @click="openOrderPage(order.id)">
                 <td class="mono">{{ order.id.slice(0, 8) }}...</td>
                 <td>{{ order.customerId }}</td>
                 <td>{{ formatDate(order.createdAt) }}</td>
@@ -637,13 +652,19 @@ onMounted(() => {
                 <td>${{ Number(order.total).toFixed(2) }}</td>
                 <td><span class="status-badge" :class="order.status.toLowerCase()">{{ order.status }}</span></td>
                 <td @click.stop>
-                  <button class="secondary small" @click="openOrderPage(order.id)">Ver detalle</button>
+                  <button class="icon-btn" title="Ver detalle" @click="openOrderPage(order.id)">→</button>
                 </td>
               </tr>
             </tbody>
           </table>
           <p v-else-if="!ordersLoading" class="empty">No hay órdenes para mostrar.</p>
           <p v-else class="empty">Cargando órdenes...</p>
+        </div>
+
+        <div class="pagination" v-if="orders.length">
+          <button :disabled="ordersPageIndex === 1" @click="goToOrdersPage(ordersPageIndex - 1)">Anterior</button>
+          <span>Página {{ ordersPageIndex }} de {{ ordersTotalPages }}</span>
+          <button :disabled="ordersPageIndex === ordersTotalPages" @click="goToOrdersPage(ordersPageIndex + 1)">Siguiente</button>
         </div>
       </section>
     </section>

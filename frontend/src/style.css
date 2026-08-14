@@ -335,6 +335,36 @@ th {
   color: #4b5563;
 }
 
+th:last-child,
+td:last-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.icon-btn {
+  background: #eff6ff;
+  color: #1d4ed8;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  background: #dbeafe;
+}
+
+.results-count {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin: -6px 0 14px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
