@@ -18,13 +18,13 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 1. Abre estas pestañas en tu navegador, en este orden, y déjalas listas sin cerrarlas:
    - Pestaña 1: tu sitio de Netlify (`https://alexisbbya.netlify.app`).
    - Pestaña 2: MongoDB Atlas, ya con sesión iniciada, en la pantalla de tu cluster.
-   - Pestaña 3: Swagger de Order.API (`https://order-api-wtqb.onrender.com/swagger/index.html`).
 2. Abre tu editor de código (VS Code) con el proyecto `eshop-services` cargado.
-3. En el editor, abre desde ya estos 5 archivos en pestañas separadas (para no perder tiempo buscando durante la grabación):
+3. En el editor, abre desde ya estos 6 archivos en pestañas separadas (para no perder tiempo buscando durante la grabación):
    - `src/Order.API/Models/PurchaseOrder.cs`
    - `src/Order.API/Data/MongoOrderRepository.cs`
    - `src/Order.API/Application/OrderService.cs`
    - `src/Order.API/Endpoints/OrdersEndpoint.cs`
+   - `src/Order.API/Program.cs`
    - `frontend/src/App.vue`
 4. En el sitio de Netlify, entra a la sección del carrito y agrega 1 producto (para que ya esté listo cuando llegues a esa parte).
 
@@ -129,7 +129,28 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 > /api/orders/customer/{customerId}` para las de un cliente, y `PATCH
 > /api/orders/{id}/status` para cambiar el estado. Todo documentado con Swagger."
 
-### 2.6 Frontend
+### 2.6 Ensamblado del servicio (Program.cs)
+
+**QUÉ HACER:**
+- Abre `src/Order.API/Program.cs` (agrégalo a tus pestañas si no lo tenías).
+- Señala, en orden, mientras hablas:
+  1. La línea `BsonSerializer.RegisterSerializer(...)` hasta arriba del archivo.
+  2. `builder.Services.AddSingleton<IOrderRepository, MongoOrderRepository>()`.
+  3. Los dos bloques `AddHttpClient<IBasketApiClient, ...>` y `AddHttpClient<ICatalogApiClient, ...>`.
+  4. `builder.Services.AddExceptionHandler<CustomExceptionHandler>()`.
+  5. `builder.Services.AddSwaggerGen()` y, más abajo, `app.UseSwaggerUI()`.
+
+**QUÉ DECIR:**
+> "Todo esto se ensambla en `Program.cs`, el punto de entrada del microservicio.
+> Aquí se registra el repositorio de MongoDB como singleton, y dos clientes HTTP
+> tipados —`IBasketApiClient` y `ICatalogApiClient`— apuntando a las URLs de los
+> otros microservicios, configuradas por variables de entorno. También se reutiliza
+> `CustomExceptionHandler`, el mismo manejador de errores centralizado que ya usan
+> Catalog.API y Basket.API, para mantener consistencia en cómo se devuelven los
+> errores en toda la solución. Y se habilita Swagger, que genera automáticamente
+> la documentación interactiva de la API a partir de estos mismos endpoints."
+
+### 2.7 Frontend
 
 **QUÉ HACER:**
 - Cambia a la pestaña `frontend/src/App.vue`.
@@ -209,69 +230,28 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 
 **QUÉ DECIR:**
 > "En la vista de Pedidos se listan todas las órdenes generadas, con paginación, y
-> puedo filtrar por cliente específico para ver solo sus compras."
+> puedo filtrar por cliente específico para ver solo sus compras. Cada fila muestra
+> el cliente, la fecha y hora exactas, los productos, el total y el estado con un
+> color distinto según si está pendiente, confirmada o cancelada; y haciendo clic
+> en cualquier parte de la fila se llega al mismo detalle que vimos antes."
 
-### 3.5 Pruebas en Swagger
-
-**QUÉ HACER (preparación):**
-- Cambia a la Pestaña 3 (Swagger de Order.API). Deberías ver una lista de endpoints agrupados bajo "Orders", cada uno con un color según su método (azul=POST, verde=GET, naranja=PATCH).
-
-**QUÉ DECIR (antes de empezar las pruebas):**
-> "Para cerrar, algunas pruebas puntuales desde Swagger, la documentación
-> interactiva de la API."
-
-**Prueba A — Carrito vacío (400 esperado):**
+### 3.5 Cierre de la demo: los tres servicios trabajando juntos
 
 **QUÉ HACER:**
-1. Haz clic sobre la barra azul de **`POST /api/orders`** para expandirla.
-2. Haz clic en el botón **"Try it out"** (arriba a la derecha del bloque, se pone editable).
-3. En el cuadro de texto del **Request body**, borra el contenido de ejemplo y escribe:
-   ```json
-   { "customerId": "PruebaVacio", "basketId": "PruebaVacio" }
-   ```
-4. Deja el campo `Idempotency-Key` vacío o escribe cualquier texto.
-5. Haz clic en el botón azul **"Execute"** (más abajo).
-6. Baja la vista hasta la sección **"Server response"** y muestra el código **400** y el cuerpo de la respuesta.
+- Vuelve a la pestaña de Netlify, catálogo principal.
+- Abre brevemente el panel del carrito con el ícono, y ciérralo, solo para dejar claro que sigue disponible.
 
 **QUÉ DECIR:**
-> "Primero, un carrito vacío: uso un cliente que nunca cargó nada al carrito.
-> Responde `400 Bad Request`, como exige la regla de negocio."
-
-**Prueba B — Idempotencia:**
-
-**QUÉ HACER:**
-1. En el mismo formulario de `POST /api/orders` (sigue con "Try it out" activo), cambia el body al `customerId`/`basketId` real que usaste en la demo (el que sí tiene carrito, ej. `Alexis`) — nota: si ya compraste todo el carrito se vació, así que agrega otro producto rápido desde Netlify antes de esta prueba.
-2. En el campo **`idempotencyKey`**, escribe: `prueba-video-1`
-3. Haz clic en **"Execute"**.
-4. En la respuesta, copia o anota el valor de `"id"` que regresó.
-5. **Sin cambiar nada más**, haz clic en **"Execute" otra vez** (mismo body, mismo `idempotencyKey`).
-6. Compara: el `"id"` de la respuesta debe ser idéntico al del paso 4.
-
-**QUÉ DECIR:**
-> "Ahora, reenvío la misma solicitud con el mismo `Idempotency-Key`: en vez de
-> crear una segunda orden, el sistema devuelve la orden que ya existía — pueden ver
-> que el identificador es exactamente el mismo que en la ejecución anterior. Esto
-> demuestra la idempotencia."
-
-**Prueba C — Transición de estado inválida:**
-
-**QUÉ HACER:**
-1. Colapsa el bloque de `POST /api/orders` (clic en la barra de nuevo) y haz clic en la barra naranja de **`PATCH /api/orders/{id}/status`**.
-2. Haz clic en **"Try it out"**.
-3. En el campo **`id`**, pega el ID de una orden que ya hayas confirmado o cancelado antes (por ejemplo, la que confirmaste en el paso 3.3 — copia su ID de esa pestaña).
-4. Si esa orden está en `Confirmed`, primero cámbiala a `Cancelled`: en el body escribe `{ "status": "Cancelled" }` y dale Execute.
-5. Ahora, con el mismo `id`, vuelve a hacer "Try it out" en el mismo endpoint, y en el body escribe `{ "status": "Confirmed" }`.
-6. Haz clic en **"Execute"**.
-7. Muestra el código **400** en la respuesta.
-
-**QUÉ DECIR:**
-> "Y una transición de estado inválida, de `Cancelled` a `Confirmed`: el sistema la
-> rechaza con `400 Bad Request`, protegiendo la integridad del ciclo de vida de la
-> orden."
+> "Con esto se completa el flujo de punta a punta: el catálogo y el carrito, que ya
+> existían de la primera fase del proyecto, ahora se conectan con este nuevo
+> microservicio de órdenes sin que se haya tocado su lógica interna — Order.API
+> simplemente los consume por HTTP, como un cliente más. Esa es la ventaja de la
+> arquitectura de microservicios: cada servicio se puede extender o reemplazar sin
+> afectar a los demás, mientras se respete el contrato de su API."
 
 ---
 
-## 4. Cierre (30 s)
+## 4. Cierre (30-40 s)
 
 **QUÉ HACER:**
 - Vuelve a mostrar el editor con el proyecto, o el sitio de Netlify en la pantalla principal.
@@ -280,15 +260,18 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 > "En resumen: Order.API es un microservicio independiente con Minimal API,
 > persistencia en MongoDB Atlas, idempotencia mediante `Idempotency-Key`, control
 > de estados con transiciones validadas, e integración HTTP con los
-> microservicios existentes de catálogo y carrito — todo publicado en la nube y
-> funcionando en conjunto con el frontend. Gracias."
+> microservicios existentes de catálogo y carrito. Reutiliza los mismos patrones de
+> diseño del resto del proyecto —manejo de errores centralizado, separación por
+> capas, variables de entorno para toda la configuración sensible— y quedó
+> publicado en la nube, funcionando en conjunto con el frontend en un flujo de
+> compra completo y verificable de principio a fin. Gracias."
 
 ---
 
 ### Checklist antes de grabar
-- [ ] Las 3 pestañas del navegador abiertas y listas (Netlify, MongoDB Atlas, Swagger).
-- [ ] Los 5 archivos del editor abiertos en pestañas separadas.
-- [ ] Los 3 servicios en Render respondiendo (`/products`, `/health`, `/swagger/index.html` de order-api).
+- [ ] Las 2 pestañas del navegador abiertas y listas (Netlify, MongoDB Atlas).
+- [ ] Los 6 archivos del editor abiertos en pestañas separadas.
+- [ ] Los 3 servicios en Render respondiendo (`/products`, `/health` de basket-api, `/api/orders` de order-api).
 - [ ] MongoDB Atlas con el cluster activo (no pausado por inactividad — revisa antes de grabar, si dice "paused" dale Resume y espera).
 - [ ] Un producto ya agregado al carrito en Netlify antes de empezar a grabar.
 - [ ] Contraseñas/connection strings tapadas si el video se comparte públicamente.
