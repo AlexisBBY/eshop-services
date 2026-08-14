@@ -1,4 +1,5 @@
 using Carter;
+using Microsoft.AspNetCore.Mvc;
 using Order.API.Application;
 
 namespace Order.API.Endpoints
@@ -9,9 +10,8 @@ namespace Order.API.Endpoints
         {
             var group = app.MapGroup("/api/orders").WithTags("Orders");
 
-            group.MapPost("/", async (CreateOrderRequest request, HttpRequest httpRequest, IOrderService service, CancellationToken ct) =>
+            group.MapPost("/", async (CreateOrderRequest request, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey, IOrderService service, CancellationToken ct) =>
             {
-                string? idempotencyKey = httpRequest.Headers.TryGetValue("Idempotency-Key", out var key) ? key.ToString() : null;
                 var order = await service.CreateOrderAsync(request, idempotencyKey, ct);
                 return Results.Created($"/api/orders/{order.Id}", order);
             })
