@@ -323,23 +323,10 @@ function clearOrdersFilter() {
   loadOrders()
 }
 
-async function changeOrderStatusInList(order, status) {
-  try {
-    const response = await fetch(`${ORDERS_API_URL}/api/orders/${order.id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    })
-    if (!response.ok) {
-      const problem = await response.json().catch(() => null)
-      throw new Error(problem?.detail || 'No se pudo cambiar el estado')
-    }
-    const updated = await response.json()
-    const idx = orders.value.findIndex((o) => o.id === order.id)
-    if (idx !== -1) orders.value[idx] = updated
-  } catch (err) {
-    ordersError.value = err.message || 'Ocurrió un error'
-  }
+function summarizeProducts(order) {
+  const names = order.items.map((i) => i.productName)
+  if (names.length <= 2) return names.join(', ')
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`
 }
 
 // ===================== DETALLE DE ORDEN (vista: order) =====================
@@ -646,21 +633,11 @@ onMounted(() => {
                 <td>{{ order.customerId }}</td>
                 <td>{{ formatDate(order.createdAt) }}</td>
                 <td>{{ formatTime(order.createdAt) }}</td>
-                <td>{{ order.items.map(i => i.productName).join(', ') }}</td>
+                <td>{{ summarizeProducts(order) }}</td>
                 <td>${{ Number(order.total).toFixed(2) }}</td>
                 <td><span class="status-badge" :class="order.status.toLowerCase()">{{ order.status }}</span></td>
                 <td @click.stop>
                   <button class="secondary small" @click="openOrderPage(order.id)">Ver detalle</button>
-                  <button
-                    v-if="order.status === 'Pending'"
-                    class="primary small"
-                    @click="changeOrderStatusInList(order, 'Confirmed')"
-                  >Confirmar</button>
-                  <button
-                    v-if="order.status === 'Pending'"
-                    class="danger small"
-                    @click="changeOrderStatusInList(order, 'Cancelled')"
-                  >Cancelar</button>
                 </td>
               </tr>
             </tbody>
