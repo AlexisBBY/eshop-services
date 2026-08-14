@@ -641,17 +641,16 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="order in orders" :key="order.id">
-                <td>
-                  <a href="#" @click.prevent="openOrderPage(order.id)">{{ order.id.slice(0, 8) }}...</a>
-                </td>
+              <tr v-for="order in orders" :key="order.id" class="row-clickable" @click="openOrderPage(order.id)">
+                <td class="mono">{{ order.id.slice(0, 8) }}...</td>
                 <td>{{ order.customerId }}</td>
                 <td>{{ formatDate(order.createdAt) }}</td>
                 <td>{{ formatTime(order.createdAt) }}</td>
                 <td>{{ order.items.map(i => i.productName).join(', ') }}</td>
                 <td>${{ Number(order.total).toFixed(2) }}</td>
                 <td><span class="status-badge" :class="order.status.toLowerCase()">{{ order.status }}</span></td>
-                <td>
+                <td @click.stop>
+                  <button class="secondary small" @click="openOrderPage(order.id)">Ver detalle</button>
                   <button
                     v-if="order.status === 'Pending'"
                     class="primary small"
@@ -685,10 +684,28 @@ onMounted(() => {
       <p v-if="orderDetailLoading" class="empty">Cargando orden...</p>
 
       <section v-if="orderDetail" class="card">
-        <p><strong>Orden:</strong> {{ orderDetail.id }}</p>
-        <p><strong>Cliente:</strong> {{ orderDetail.customerId }}</p>
-        <p><strong>Fecha:</strong> {{ formatDate(orderDetail.createdAt) }} · <strong>Hora:</strong> {{ formatTime(orderDetail.createdAt) }}</p>
-        <p><strong>Estado:</strong> <span class="status-badge" :class="orderDetail.status.toLowerCase()">{{ orderDetail.status }}</span></p>
+        <dl class="summary-grid">
+          <div>
+            <dt>Orden</dt>
+            <dd class="mono">{{ orderDetail.id }}</dd>
+          </div>
+          <div>
+            <dt>Cliente</dt>
+            <dd>{{ orderDetail.customerId }}</dd>
+          </div>
+          <div>
+            <dt>Fecha</dt>
+            <dd>{{ formatDate(orderDetail.createdAt) }}</dd>
+          </div>
+          <div>
+            <dt>Hora</dt>
+            <dd>{{ formatTime(orderDetail.createdAt) }}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd><span class="status-badge" :class="orderDetail.status.toLowerCase()">{{ orderDetail.status }}</span></dd>
+          </div>
+        </dl>
 
         <div class="table-wrapper">
           <table>
@@ -711,7 +728,11 @@ onMounted(() => {
           </table>
         </div>
 
-        <p>Subtotal: ${{ Number(orderDetail.subtotal).toFixed(2) }} · Impuesto: ${{ Number(orderDetail.tax).toFixed(2) }} · <strong>Total: ${{ Number(orderDetail.total).toFixed(2) }}</strong></p>
+        <div class="totals-row">
+          <span>Subtotal: ${{ Number(orderDetail.subtotal).toFixed(2) }}</span>
+          <span>Impuesto: ${{ Number(orderDetail.tax).toFixed(2) }}</span>
+          <span class="totals-final">Total: ${{ Number(orderDetail.total).toFixed(2) }}</span>
+        </div>
 
         <div class="actions">
           <button

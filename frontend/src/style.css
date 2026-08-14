@@ -35,11 +35,11 @@ textarea {
 }
 
 .panel {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   background: white;
   border-radius: 24px;
-  padding: 24px;
+  padding: 36px;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
 }
 
@@ -48,7 +48,7 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .eyebrow {
@@ -192,7 +192,15 @@ h2 {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 18px;
-  padding: 20px;
+  padding: 28px;
+}
+
+.card + .card {
+  margin-top: 24px;
+}
+
+.card h2 {
+  margin-bottom: 18px;
 }
 
 .form-card label {
@@ -220,12 +228,13 @@ textarea {
 .toolbar,
 .pagination {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .actions {
-  margin-top: 16px;
+  margin-top: 20px;
 }
 
 button {
@@ -279,15 +288,17 @@ button:disabled {
 }
 
 .toolbar {
-  margin-bottom: 12px;
+  margin-bottom: 18px;
 }
 
 .toolbar input {
   flex: 1;
+  min-width: 160px;
 }
 
 .table-wrapper {
   overflow-x: auto;
+  margin-top: 4px;
 }
 
 table {
@@ -298,8 +309,70 @@ table {
 th,
 td {
   text-align: left;
-  padding: 10px 8px;
+  padding: 16px 12px;
   border-bottom: 1px solid #e5e7eb;
+}
+
+th {
+  color: #6b7280;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.row-clickable {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.row-clickable:hover {
+  background: #eef2ff;
+}
+
+.mono {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 20px 28px;
+  margin: 0 0 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.summary-grid dt {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.summary-grid dd {
+  margin: 0;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-word;
+}
+
+.totals-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  color: #374151;
+}
+
+.totals-final {
+  font-weight: 700;
+  color: #111827;
+  font-size: 1.05rem;
 }
 
 .empty {
