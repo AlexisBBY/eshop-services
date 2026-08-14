@@ -47,6 +47,12 @@ namespace Order.API.Data
                 .SortByDescending(o => o.CreatedAt)
                 .ToListAsync(cancellationToken));
 
+        public Task<List<PurchaseOrder>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            RunAsync(() => _orders
+                .Find(FilterDefinition<PurchaseOrder>.Empty)
+                .SortByDescending(o => o.CreatedAt)
+                .ToListAsync(cancellationToken));
+
         public Task CreateAsync(PurchaseOrder order, CancellationToken cancellationToken = default) =>
             RunAsync<object?>(async () => { await _orders.InsertOneAsync(order, cancellationToken: cancellationToken); return null; });
 

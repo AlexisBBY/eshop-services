@@ -22,6 +22,15 @@ namespace Order.API.Endpoints
             .WithDescription("Valida el carrito y los productos, congela los precios, y persiste la orden en MongoDB. " +
                 "Soporta idempotencia mediante el header Idempotency-Key.");
 
+            group.MapGet("/", async (IOrderService service, CancellationToken ct) =>
+            {
+                var orders = await service.GetAllAsync(ct);
+                return Results.Ok(orders);
+            })
+            .WithName("GetAllOrders")
+            .Produces<List<OrderResponse>>(StatusCodes.Status200OK)
+            .WithSummary("Lista todas las ordenes");
+
             group.MapGet("/{id}", async (string id, IOrderService service, CancellationToken ct) =>
             {
                 var order = await service.GetByIdAsync(id, ct);

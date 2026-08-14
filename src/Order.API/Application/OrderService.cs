@@ -10,6 +10,7 @@ namespace Order.API.Application
         Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request, string? idempotencyKey, CancellationToken cancellationToken = default);
         Task<OrderResponse> GetByIdAsync(string id, CancellationToken cancellationToken = default);
         Task<List<OrderResponse>> GetByCustomerIdAsync(string customerId, CancellationToken cancellationToken = default);
+        Task<List<OrderResponse>> GetAllAsync(CancellationToken cancellationToken = default);
         Task<OrderResponse> UpdateStatusAsync(string id, string status, CancellationToken cancellationToken = default);
     }
 
@@ -97,6 +98,12 @@ namespace Order.API.Application
         public async Task<List<OrderResponse>> GetByCustomerIdAsync(string customerId, CancellationToken cancellationToken = default)
         {
             var orders = await repository.GetByCustomerIdAsync(customerId, cancellationToken);
+            return orders.Select(OrderResponse.FromOrder).ToList();
+        }
+
+        public async Task<List<OrderResponse>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            var orders = await repository.GetAllAsync(cancellationToken);
             return orders.Select(OrderResponse.FromOrder).ToList();
         }
 
