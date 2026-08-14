@@ -168,9 +168,56 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 
 ---
 
-## 3. Demo completa en producción (7-8 min)
+## 3. Publicar en la nube: MongoDB Atlas y Render (3-4 min)
 
-### 3.1 Agregar al carrito y comprar
+### 3.1 Base de datos: MongoDB Atlas
+
+**QUÉ HACER:**
+1. Abre una pestaña nueva y entra a [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas).
+2. Muestra tu **Organization** y **Project** en la parte de arriba, y el menú izquierdo con **Clusters**.
+3. Haz clic en tu cluster (o, si estuvieras creando uno desde cero, en **+ Create** → plan **M0 Free**).
+4. Ve a **Security → Database Access** en el menú izquierdo, y muestra el usuario de base de datos que creaste (sin mostrar la contraseña en pantalla).
+5. Ve a **Security → Network Access**, y muestra la entrada `0.0.0.0/0` (permitir desde cualquier IP) — necesaria para que Render pueda conectarse.
+6. Regresa a **Clusters**, clic en **Connect → Drivers → .NET**, y muestra el connection string (con la contraseña tapada u oculta del encuadre).
+
+**QUÉ DECIR:**
+> "La base de datos está alojada en MongoDB Atlas, un servicio de base de datos
+> documental administrado en la nube. Aquí está el clúster, con un usuario de
+> base de datos dedicado y, en la sección de Network Access, la regla que permite
+> conexiones desde cualquier IP — necesaria porque Render no tiene una IP fija en
+> el plan gratuito. El connection string que se genera aquí —oculto la contraseña
+> por seguridad— es lo único que Order.API necesita para conectarse; no se guarda
+> en el código fuente, sino como variable de entorno en el siguiente paso."
+
+### 3.2 Microservicio: Render
+
+**QUÉ HACER:**
+1. Abre otra pestaña y entra a [dashboard.render.com](https://dashboard.render.com).
+2. Muestra la lista de servicios ya desplegados: `catalog-api`, `basket-api`, y `order-api`.
+3. Haz clic en `order-api` para entrar a su panel.
+4. Ve a la pestaña **Settings** y señala brevemente: **Dockerfile Path** (`src/Order.API/Dockerfile`) y el repositorio de GitHub conectado.
+5. Ve a la pestaña **Environment**, y muestra (sin revelar contraseñas) la lista de variables configuradas: `ASPNETCORE_ENVIRONMENT`, `MongoDb__ConnectionString`, `MongoDb__DatabaseName`, `MongoDb__CollectionName`, `Services__BasketApi`, `Services__CatalogApi`, `Cors__AllowedOrigins__0`.
+6. Ve a la pestaña **Logs** o **Events**, y muestra el último deploy terminando en "Live" / exitoso.
+7. Muestra la URL pública arriba del panel (`https://order-api-wtqb.onrender.com`).
+
+**QUÉ DECIR:**
+> "El microservicio se publica en Render, el mismo servicio en la nube que ya
+> usábamos para Catalog.API y Basket.API — así que el proceso fue el mismo: crear
+> un nuevo 'Web Service' apuntando al mismo repositorio de GitHub, indicando la
+> ruta de su Dockerfile específico, y configurando sus propias variables de
+> entorno. Lo único distinto aquí es que, además del connection string de
+> MongoDB, Order.API necesita saber dónde están los otros dos microservicios: las
+> variables `Services__BasketApi` y `Services__CatalogApi` apuntan a sus URLs
+> públicas en Render, para que la comunicación entre microservicios funcione
+> también en producción, no solo en local. Cada `git push` al repositorio
+> redespliega automáticamente los tres servicios que hayan cambiado, sin pasos
+> manuales."
+
+---
+
+## 4. Demo completa en producción (7-8 min)
+
+### 4.1 Agregar al carrito y comprar
 
 **QUÉ HACER:**
 1. Cambia a la Pestaña 1 (tu sitio de Netlify), ya debería tener 1 producto en el carrito de la preparación inicial.
@@ -188,7 +235,7 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 > identificador único, la fecha, la hora, los productos con sus cantidades y
 > precios, y el estado inicial: `Pending`."
 
-### 3.2 Verificar en MongoDB Atlas
+### 4.2 Verificar en MongoDB Atlas
 
 **QUÉ HACER:**
 1. Copia el ID de la orden que se ve en pantalla (selecciónalo y Cmd+C).
@@ -204,10 +251,10 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 > está, con exactamente los mismos datos: cliente, items, subtotal, impuesto,
 > total y estado."
 
-### 3.3 Cambiar el estado y descargar PDF
+### 4.3 Cambiar el estado y descargar PDF
 
 **QUÉ HACER:**
-1. Regresa a la pestaña del detalle de la orden (la que se abrió en el paso 3.1).
+1. Regresa a la pestaña del detalle de la orden (la que se abrió en el paso 4.1).
 2. Haz clic en el botón azul **"Confirmar orden"**.
 3. Observa que el badge de estado cambia de amarillo (`Pending`) a verde (`Confirmed`).
 4. Haz clic en el botón **"📄 Descargar PDF"**.
@@ -219,7 +266,7 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 > descargo el comprobante en PDF, generado del lado del cliente con fecha, hora,
 > productos, cantidades, precios y total."
 
-### 3.4 Vista de Pedidos
+### 4.4 Vista de Pedidos
 
 **QUÉ HACER:**
 1. Regresa a la Pestaña 1 (Netlify), a la página principal del catálogo.
@@ -235,7 +282,7 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 > color distinto según si está pendiente, confirmada o cancelada; y haciendo clic
 > en cualquier parte de la fila se llega al mismo detalle que vimos antes."
 
-### 3.5 Cierre de la demo: los tres servicios trabajando juntos
+### 4.5 Cierre de la demo: los tres servicios trabajando juntos
 
 **QUÉ HACER:**
 - Vuelve a la pestaña de Netlify, catálogo principal.
@@ -251,7 +298,7 @@ Practica una vez sin grabar para ubicar las pestañas/ventanas antes de empezar.
 
 ---
 
-## 4. Cierre (30-40 s)
+## 5. Cierre (30-40 s)
 
 **QUÉ HACER:**
 - Vuelve a mostrar el editor con el proyecto, o el sitio de Netlify en la pantalla principal.
